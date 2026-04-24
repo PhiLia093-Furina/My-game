@@ -56,7 +56,7 @@ class player(pygame.sprite.Sprite):
     def shot(self):
 
         self.shoot_cd += 1
-        if self.shoot_cd < 2:
+        if self.shoot_cd < 1:
             return
         self.shoot_cd = 0
 
@@ -75,9 +75,12 @@ class player(pygame.sprite.Sprite):
             print("命中")
             self.score += 1
         hits3 = pygame.sprite.groupcollide(bullet_group, enemy_bullet_group, True, True)
-        
-        pass
 
+        hits4 = pygame.sprite.spritecollide(bos, bullet_group, True)
+
+        if hits4:
+            bos.life -= 1
+        pass
 
 class enemy(pygame.sprite.Sprite):
     #定义构造函数
@@ -115,16 +118,72 @@ class enemy(pygame.sprite.Sprite):
         # 2. 检测是否撞墙
         hit_wall = pygame.sprite.spritecollide(self, wall_group, False)
         hit_self = pygame.sprite.spritecollide(self, enemy_group, False)
-        hit_play = pygame.sprite.spritecollide(self, play_group, False)
 
-        if hit_wall or hit_play:
+        if hit_wall :
             self.kill()
+
+        if len(hit_self) > 1:
+            direct = random.choice([(0, -BLOCK_SIZE), (0, BLOCK_SIZE)])
+            self.rect.move_ip(direct)
 
     def enemy_shot(self):
 
         self.shot_cd += 1
-        # if self.shot_cd < 60:
-        #     return
+        if self.shot_cd < 10:
+            return
+        self.shot_cd = 0
+        sign = random.randint(1, 100)
+        if sign < 2:
+            Bullet = bullet(self.rect.center, [-2, 0])
+            enemy_bullet_group.add(Bullet)
+
+class boss(pygame.sprite.Sprite):
+    def __init__(self, filename = None):
+        # 调父类来初始化子类
+        pygame.sprite.Sprite.__init__(self)
+        self.life = 20
+        # 加载图片
+        if filename!=None:
+            img = pygame.image.load(filename)
+            self.image = pygame.transform.scale(img, (BLOCK_SIZE*2, BLOCK_SIZE*2))
+        else:
+        # 获取图片rect区域
+            self.image = pygame.Surface((BLOCK_SIZE*2, BLOCK_SIZE*2))
+            self.image.fill("#0FFFA3")
+        # 获取图片rect区域
+        self.rect = self.image.get_rect()
+        # 设置位置
+        self.rect.topleft = BLOCK_SIZE*29, BLOCK_SIZE*13
+
+        self.move_cd = 0
+        self.shot_cd = 0
+
+
+    def update(self):
+
+        self.move_cd += 1
+        # 每 15 帧走一格，速度适中
+        if self.move_cd < 30:
+            return
+        self.move_cd = 0
+        dx, dy = random.choice([(0, BLOCK_SIZE/5), (0, -BLOCK_SIZE/5)])
+        # 1. 先预判下一个位置
+        old_x = self.rect.x
+        old_y = self.rect.y
+        self.rect.x += dx
+        self.rect.y += dy
+        # 2. 检测是否撞墙
+        hit_wall = pygame.sprite.spritecollide(self, wall_group, False)
+
+        if hit_wall :
+            self.rect.x = old_x
+            self.rect.y = old_y
+
+    def enemy_shot(self):
+
+        self.shot_cd += 1
+        if self.shot_cd < 8:
+            return
         self.shot_cd = 0
         sign = random.randint(1, 100)
         if sign < 2:
@@ -158,14 +217,40 @@ def update_enemy_bullets():
         for p in play:
             p.rect.topleft = p.pos
 
+def update_coliision():
+    collide_p_to_e = pygame.sprite.groupcollide(play_group, enemy_group, False, True)
+    collide_p_to_b = pygame.sprite.spritecollide(bos, play_group, False)
+    if collide_p_to_e :
+        for play, en in collide_p_to_e.items():
+            play.rect.topleft = play.pos
+
+    if collide_p_to_b:
+        for play in collide_p_to_b:
+            play.rect.topleft = play.pos
+
+def check_player_collision(player_id, site):
+
+    if site == [0, 0]:
+        return 
+    
+    collide_wall = pygame.sprite.spritecollide(player_id, wall_group, False)
+    
+    if collide_wall:
+        back = [-site[0], -site[1]]
+        player_id.rect.move_ip(back)
+        return 
+
 def update():
     
     # main_win.blit(main_bg, (0,0))
     main_win.fill("#08AFFC")
     wall_group.draw(main_win)
+    update_coliision()
 
     enemy_group.draw(main_win)
     enemy_group.update()
+    main_win.blit(bos.image, bos.rect)
+    bos.update()
     enemy_bullet_group.update()
     enemy_bullet_group.draw(main_win)
 
@@ -173,6 +258,7 @@ def update():
     bullet_group.draw(main_win)
     play_group.draw(main_win)
 
+    
     player1.update_bullets()
     update_enemy_bullets()
 
@@ -182,7 +268,7 @@ def update():
 def game_over():
     sign = 0
     while True:
-        sucess_text , suc_text_rect = txt(f"恭喜达到通关分数\n点击鼠标继续游玩", (500,350), "#FF0000")
+        sucess_text , suc_text_rect = txt(f"恭喜通关\n点击鼠标继续游玩", (470,350), "#FF0000")
         # main_win.blit(main_bg, (0,0))
         main_win.fill("#08AFFC")
         wall_group.draw(main_win)
@@ -200,24 +286,8 @@ def game_over():
                 break
         if sign ==1:
             break
-
-def check_player_collision(player_id, site):
-
-    if site == [0, 0]:
-        return 
-    
-    collide_wall = pygame.sprite.spritecollide(player_id, wall_group, False)
-    collide_enemy = pygame.sprite.spritecollide(player_id, enemy_group, False)
-
-    if collide_wall:
-        back = [-site[0], -site[1]]
-        player_id.rect.move_ip(back)
-        return 
-
-    if collide_enemy :
-        player_id.rect.topleft = player_id.pos
-        collide_enemy[0].kill()
-    
+    bos.life = 20
+    main_win.blit(bos.image, bos.rect)
 
 def fit_line(p1, p2):
 
@@ -253,7 +323,8 @@ def mouse_move(obj, site2):
         if x2 > x1:
             for x in range(x1, x2+1, 1):
                 y = A*x + C
-                main_win.blit(main_bg, (0, 0))
+                # main_win.blit(main_bg, (0, 0))
+                main_win.fill("#08AFFC")
                 main_win.blit(obj.image, (int(x), int(y)))
                 pygame.display.flip()
                 pygame.time.delay(3)
@@ -261,7 +332,8 @@ def mouse_move(obj, site2):
         elif x2 < x1:
             for x in range(x1, x2-1, -1):
                 y = A*x + C
-                main_win.blit(main_bg, (0, 0))
+                # main_win.blit(main_bg, (0, 0))
+                main_win.fill("#08AFFC")
                 main_win.blit(obj.image, (int(x), int(y)))
                 pygame.display.flip()
                 pygame.time.delay(3)
@@ -269,7 +341,8 @@ def mouse_move(obj, site2):
         if y2 > y1:
             for y in range(y1, y2+1, 1):
                 x = B*y + C
-                main_win.blit(main_bg, (0, 0))
+                # main_win.blit(main_bg, (0, 0))
+                main_win.fill("#08AFFC")
                 main_win.blit(obj.image, (int(x), int(y)))
                 pygame.display.flip()
                 pygame.time.delay(3)
@@ -277,7 +350,8 @@ def mouse_move(obj, site2):
         elif y2 < y1:
             for y in range(y1, y2-1, -1):
                 x = B*y + C
-                main_win.blit(main_bg, (0, 0))
+                # main_win.blit(main_bg, (0, 0))
+                main_win.fill("#08AFFC")
                 main_win.blit(obj.image, (int(x), int(y)))
                 pygame.display.flip()
                 pygame.time.delay(3)
@@ -298,7 +372,7 @@ def key_move(event):
             site1[0] += BLOCK_SIZE
         player1.rect.move_ip(site1)
         if site1[0] != 0 or site1[1] != 0:
-            player1.Direction = [site1[0] // 10, site1[1] // 10]
+            player1.Direction = [site1[0] // 8, site1[1] // 8]
         check_player_collision(player1, site1)
 
     if event.key in [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d]:    
@@ -350,17 +424,18 @@ if __name__ == "__main__":
 
     bullet_group = pygame.sprite.Group()
 
-
     enemy_group = pygame.sprite.Group()
     for pos in enemy_list:
         e = enemy(pos)
         enemy_group.add(e)
         break
 
+    bos = boss("config/boss.jpg")
+
     enemy_bullet_group = pygame.sprite.Group()
+
     ground()
     wall_group = pygame.sprite.Group()
-
     for grd in ground_list:
         w = board_wall(grd)
         wall_group.add(w)
@@ -372,14 +447,15 @@ if __name__ == "__main__":
         p1_text, p1_text_rect = txt(f"玩家1得分:{player1.score}", (0,0), "#FC0808")
         p2_text, p2_text_rect = txt(f"玩家2得分:{player2.score}", (1100,0), "#EE2207")
 
-        if player1.score >= 5 or player2.score >= 5:
+        if player1.score >= 100 or player2.score >= 100 or bos.life == 0:
                 player1.score = 0
                 player2.score = 0
                 game_over()
-
+        print(bos.life)
         clock.tick(60)
         for e in enemy_group:
             e.enemy_shot()
+            bos.enemy_shot()
 
         if len(enemy_group)<6 and random.randint(1,10)<2:
             pos = random.choice(enemy_list)
